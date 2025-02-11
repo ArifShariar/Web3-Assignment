@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPSwap Exchange</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.3/dist/web3.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        header, footer { background: #333; color: white; padding: 10px 20px; text-align: center; }
+        main { max-width: 800px; margin: 20px auto; padding: 20px; }
+        button { background: #4CAF50; color: white; padding: 10px; border: none; cursor: pointer; }
+        input { padding: 10px; margin: 5px; width: calc(100% - 22px); }
+        p { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>PPSwap Exchange</h1>
+        <button id="connectButton">Connect to MetaMask</button>
+    </header>
+    <main>
+        <h2>Buy PPS Tokens</h2>
+        <label>Amount in ETH:</label>
+        <input type="text" id="ethAmount" placeholder="Enter ETH amount">
+        <button onclick="buyPPS()">Buy PPS</button>
+        <p id="buyPPSStatus"></p>
+
+        <h2>Sell PPS Tokens</h2>
+        <label>Amount in PPS:</label>
+        <input type="text" id="ppsAmount" placeholder="Enter PPS amount">
+        <button onclick="sellPPS()">Sell PPS</button>
+        <p id="sellPPSStatus"></p>
+    </main>
+    <footer>
+        &copy; 2025 PPSwap. All rights reserved.
+    </footer>
+
+    <script>
+        const contractAddress = "0xef66563ba440921bc1f7c2b7bd9ac4d84edffce7";
+        let ppswapContract;
+        let web3;
+        let accounts = [];
+
+        async function loadContractABI() {
+            const response = await fetch('./PPSwapABI.json');
+            return response.json();
+        }
+
+        async function buyPPS() {
+            const ethValue = document.getElementById('ethAmount').value;
+            if (ppswapContract && web3) {
+                try {
+                    const valueInWei = web3.utils.toWei(ethValue, 'ether');
+                    document.getElementById('buyPPSStatus').innerText = "Waiting for confirmation...";
+                    await ppswapContract.methods.buyPPS().send({ from: accounts[0], value: valueInWei });
+                    document.getElementById('buyPPSStatus').innerText = "✅ PPS bought successfully!";
+                } catch (error) {
+                    document.getElementById('buyPPSStatus').innerText = `❌ Error: ${error.message}`;
+                    console.error(error);
+                }
+            }
+        }
+
+        async function sellPPS() {
+            const ppsValue = document.getElementById('ppsAmount').value;
+            if (ppswapContract && web3) {
+                try {
+                    const valueInWei = web3.utils.toWei(ppsValue, 'ether');
+                    
+                    // Approving the contract to spend tokens
+                    const allowance = await ppswapContract.methods.allowance(accounts[0], contractAddress).call();
+                    if (BigInt(allowance) < BigInt(valueInWei)) {
+                        document.getElementById('sellPPSStatus').innerText = "Approving PPS tokens...";
+                        await ppswapContract.methods.approve(contractAddress, valueInWei).send({ from: accounts[0] });
+                    }
+
+                    document.getElementById('sellPPSStatus').innerText = "Waiting for confirmation...";
+                    await ppswapContract.methods.sellPPS(valueInWei).send({ from: accounts[0] });
+                    document.getElementById('sellPPSStatus').innerText = "✅ PPS sold successfully!";
+                } catch (error) {
+                    document.getElementById('sellPPSStatus').innerText = `❌ Error: ${error.message}`;
+                    console.error(error);
+                }
+            }
+        }
+
+        async function connectWallet() {
+            if (typeof window.ethereum !== 'undefined') {
+                web3 = new Web3(window.ethereum);
+                try {
+                    accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const abi = await loadContractABI();
+                    ppswapContract = new web3.eth.Contract(abi, contractAddress);
+                    document.getElementById('connectButton').innerText = "Connected";
+                } catch (error) {
+                    console.error("Connection failed", error);
+                }
+            } else {
+                alert("MetaMask is not installed");
+            }
+        }
+
+        document.getElementById('connectButton').addEventListener('click', connectWallet);
+
+        // Auto-connect if user is already connected
+        if (typeof window.ethereum !== 'undefined') {
+            window.ethereum.request({ method: 'eth_accounts' }).then(async (acc) => {
+                if (acc.length > 0) {
+                    await connectWallet();
+                }
+            });
+        }
+    </script>
+</body>
+</html>
